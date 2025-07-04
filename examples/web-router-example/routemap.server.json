@@ -24,6 +24,10 @@
   "actions": [],
   "middlewares": [
     {
+      "pathname": "/device-id",
+      "module": "./routes/(middlewares)/device-id@middleware.ts"
+    },
+    {
       "pathname": "/flags/marketing-pages",
       "module": "./routes/(middlewares)/flags/marketing-pages@middleware.ts"
     }

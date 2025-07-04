@@ -4,6 +4,7 @@ import {
 } from '@web-widget/helpers';
 import { createHandle } from 'flags/web-router';
 import * as flags from '#config/flags';
+import { handler as deviceIdMiddleware } from './device-id@middleware';
 
 const poweredByMiddleware = defineMiddlewareHandler(
   async function poweredBy(ctx, next) {
@@ -20,4 +21,8 @@ const flagsMiddleware = createHandle({
   secret: process.env.FLAGS_SECRET,
 });
 
-export default composeMiddleware([poweredByMiddleware, flagsMiddleware]);
+export default composeMiddleware([
+  poweredByMiddleware,
+  deviceIdMiddleware,
+  flagsMiddleware,
+]);

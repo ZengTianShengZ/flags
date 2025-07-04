@@ -1,5 +1,6 @@
 import type { ReadonlyHeaders, ReadonlyRequestCookies } from 'flags';
 import { flag } from 'flags/web-router';
+import { initABTest, getAbValue } from './ab-test';
 
 export const showNewDashboard = flag<boolean>({
   key: 'showNewDashboard',
@@ -25,6 +26,7 @@ export const marketingABTestManualApproach = flag<boolean>({
 
 interface Entities {
   visitorId?: string;
+  deviceId?: string;
 }
 
 function identify({
@@ -36,25 +38,27 @@ function identify({
 }): Entities {
   const visitorId =
     cookies.get('visitorId')?.value ?? headers.get('x-visitorId');
-
-  if (!visitorId) {
+  const deviceId =
+    cookies.get('user_device_id')?.value ?? headers.get('x-user_device_id');
+  if (!visitorId || !deviceId) {
     throw new Error(
-      'Visitor ID not found - should have been set by middleware or within api/reroute',
+      'Visitor ID or user_device_id not found - should have been set by middleware or within api/reroute',
     );
   }
 
-  return { visitorId };
+  initABTest({ deviceId });
+
+  return { visitorId, deviceId };
 }
 
 export const firstMarketingABTest = flag<boolean, Entities>({
   key: 'firstMarketingABTest',
   description: 'Example of a precomputed flag',
   identify,
-  decide({ entities }) {
+  async decide({ entities }) {
     if (!entities?.visitorId) return false;
-
-    // Use any kind of deterministic method that runs on the visitorId
-    return /^[a-m0-4]/i.test(entities?.visitorId);
+    const val = await getAbValue('firstMarketingABTest', 'string_0');
+    return val === 'string_1';
   },
 });
 
