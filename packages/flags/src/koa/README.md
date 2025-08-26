@@ -1,75 +1,75 @@
-# Koa 预计算 (Precompute)
+# Koa Precompute
 
-## 背景信息
+## Background
 
-在 Next.js 生态系统中，Flag 系统提供了强大的预计算功能，允许在服务端预先生成 flag 值并序列化为字符串，然后在客户端快速反序列化获取结果。这种机制可以显著提升性能，减少服务端的重复计算。
+In the Next.js ecosystem, the Flag system provides powerful precompute functionality that allows pre-generating flag values on the server side and serializing them into strings, then quickly deserializing them on the client side to obtain results. This mechanism can significantly improve performance and reduce repeated server-side calculations.
 
-然而，在 Koa 框架中使用 Flag 的预计算功能时，遇到了一个关键限制：
+However, when using Flag's precompute functionality in the Koa framework, we encountered a critical limitation:
 
-### 问题分析
+### Problem Analysis
 
-1. **Flag 预计算的限制**：Flag 的 `precompute` 和 `evaluate` 函数不支持动态传入 `request` 对象
-2. **Flag 函数的灵活性**：`flag/next` 提供的 flag 函数本身是支持传递 `request` 参数的 [参考 Pages Router](https://flags-sdk.dev/frameworks/next#pages-router)
-3. **Koa 环境的需求**：在 Koa 应用中，不支持 Flag 内部自动获取 `request` ，需要手动传入
+1. **Flag Precompute Limitations**: Flag's `precompute` and `evaluate` functions do not support dynamically passing `request` objects
+2. **Flag Function Flexibility**: The flag functions provided by `flag/next` themselves support passing `request` parameters [Reference Pages Router](https://flags-sdk.dev/frameworks/next#pages-router)
+3. **Koa Environment Requirements**: In Koa applications, Flag cannot automatically obtain `request` internally and requires manual passing
 
-### 核心矛盾
+### Core Contradiction
 
 ```typescript
-// flag 的预计算函数不支持 request 参数
+// flag's precompute function doesn't support request parameter
 export async function precompute<T extends FlagsArray>(
   flags: T,
-  // ❌ 没有 request 参数
+  // ❌ No request parameter
 ): Promise<string>;
 
-// 但 flag 函数本身支持 request 参数
+// But flag functions themselves support request parameters
 const flag = flag<boolean>({
   key: 'user-feature',
   decide: (request) => {
-    // ✅ 可以访问 request 中的 cookies、headers 等
+    // ✅ Can access cookies, headers, etc. from request
     return request?.cookies?.['user-type'] === 'premium';
   },
 });
 ```
 
-## 解决方案
+## Solution
 
-为了解决这个问题，我们为 Koa 环境提供了增强版的预计算函数，支持动态传入 `request` 对象：
+To solve this problem, we provide enhanced precompute functions for the Koa environment that support dynamically passing `request` objects:
 
-### 新增功能
+### New Features
 
-1. **支持 request 参数的 evaluate 函数**
-2. **支持 request 参数的 precompute 函数**
-3. **完整的类型安全支持**
-4. **向后兼容性**
+1. **evaluate function supporting request parameters**
+2. **precompute function supporting request parameters**
+3. **Complete type safety support**
+4. **Backward compatibility**
 
-### 实现原理
+### Implementation Principle
 
 ```typescript
-// Koa 的增强版预计算函数
+// Koa's enhanced precompute functions
 export async function evaluate<T extends FlagsArray>(
   flags: T,
-  request?: KoaRequest, // ✅ 支持可选的 request 参数
+  request?: KoaRequest, // ✅ Supports optional request parameter
 ): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
 
 export async function precompute<T extends FlagsArray>(
   flags: T,
-  request?: KoaRequest, // ✅ 支持可选的 request 参数
+  request?: KoaRequest, // ✅ Supports optional request parameter
 ): Promise<string>;
 ```
 
-## 使用示例
+## Usage Examples
 
-### 基本用法
+### Basic Usage
 
 ```typescript
 import { flag } from '@web-widget/flags/next';
 import { precompute, evaluate } from '@web-widget/flags/koa';
 
-// 定义支持 request 的 flag
+// Define flags that support request
 const userFeatureFlag = flag<boolean>({
   key: 'user-feature',
   decide: (request) => {
-    // 基于请求上下文决定 flag 值
+    // Decide flag value based on request context
     const userType = request?.cookies?.['user-type'];
     return userType === 'premium';
   },
@@ -78,7 +78,7 @@ const userFeatureFlag = flag<boolean>({
 const themeFlag = flag<string>({
   key: 'theme',
   decide: (request) => {
-    // 基于 cookies 决定主题
+    // Decide theme based on cookies
     return request?.cookies?.['theme'] || 'light';
   },
 });
@@ -86,23 +86,23 @@ const themeFlag = flag<string>({
 const flags = [userFeatureFlag, themeFlag];
 ```
 
-### 预计算使用
+### Precompute Usage
 
 ```typescript
-// 在 Koa 中间件中使用
+// Use in Koa middleware
 app.use(async (ctx, next) => {
-  // 创建 Koa 兼容的 request 对象
+  // Create Koa-compatible request object
   const koaRequest = {
     cookies: ctx.cookies,
     headers: ctx.headers,
-    // 其他必要的属性...
+    // Other necessary properties...
   };
 
   try {
-    // 预计算所有 flags
+    // Precompute all flags
     const precomputedCode = await precompute(flags, koaRequest);
 
-    // 将预计算的结果传递给客户端
+    // Pass precomputed results to client
     ctx.state.precomputedFlags = precomputedCode;
 
     await next();
@@ -113,10 +113,10 @@ app.use(async (ctx, next) => {
 });
 ```
 
-### 动态评估
+### Dynamic Evaluation
 
 ```typescript
-// 直接评估 flags（不进行预计算）
+// Directly evaluate flags (without precompute)
 app.use(async (ctx, next) => {
   const koaRequest = {
     cookies: ctx.cookies,
@@ -124,12 +124,12 @@ app.use(async (ctx, next) => {
   };
 
   try {
-    // 直接评估 flags
+    // Directly evaluate flags
     const flagValues = await evaluate(flags, koaRequest);
 
-    // 使用评估结果
-    ctx.state.userFeature = flagValues[0]; // userFeatureFlag 的值
-    ctx.state.theme = flagValues[1]; // themeFlag 的值
+    // Use evaluation results
+    ctx.state.userFeature = flagValues[0]; // userFeatureFlag value
+    ctx.state.theme = flagValues[1]; // themeFlag value
 
     await next();
   } catch (error) {
@@ -139,9 +139,9 @@ app.use(async (ctx, next) => {
 });
 ```
 
-## 类型定义
+## Type Definitions
 
-### KoaRequest 类型
+### KoaRequest Type
 
 ```typescript
 type KoaRequestCookies = Partial<{
@@ -153,29 +153,29 @@ type KoaRequest = IncomingMessage & {
 };
 ```
 
-### 函数签名
+### Function Signatures
 
 ```typescript
-// 评估 flags
+// Evaluate flags
 export async function evaluate<T extends FlagsArray>(
   flags: T,
   request?: KoaRequest,
 ): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
 
-// 预计算 flags
+// Precompute flags
 export async function precompute<T extends FlagsArray>(
   flags: T,
   request?: KoaRequest,
 ): Promise<string>;
 
-// 反序列化
+// Deserialize
 export async function deserialize(
   flags: FlagsArray,
   code: string,
   secret?: string,
 ): Promise<Record<string, JsonValue>>;
 
-// 获取预计算的值
+// Get precomputed value
 export async function getPrecomputed<T extends JsonValue>(
   flag: Flag<T, any>,
   precomputeFlags: FlagsArray,
